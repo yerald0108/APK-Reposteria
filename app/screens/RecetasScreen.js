@@ -6,13 +6,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { deleteReceta } from '../database/db';
+import { deleteReceta, getIngredientesByReceta } from '../database/db';
 import { useApp } from '../contexts/AppContext';
 import { calcularCostoIngrediente } from '../utils/conversions';
 
 export default function RecetasScreen({ navigation }) {
   const { recetas, cargarRecetas } = useApp();
-  const [recetas, setRecetas] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const scrollY = useRef(new Animated.Value(0)).current;
 

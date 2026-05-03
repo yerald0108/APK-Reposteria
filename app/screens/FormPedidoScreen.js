@@ -45,6 +45,16 @@ export default function FormPedidoScreen({ navigation, route }) {
     setCostoTotal(total);
   }, [productosSeleccionados]);
 
+  
+  useEffect(() => {
+    if (pedidoEditar) {
+      cargarDatosPedido();
+    } else {
+      // También carga las recetas disponibles para nuevos pedidos
+      setRecetasDisponibles(recetasConPrecio);
+    }
+  }, [pedidoEditar]); // Se ejecuta cuando cambia el pedido a editar
+
   const cargarDatosPedido = async () => {
     setNombre(pedidoEditar.cliente_nombre);
     setTelefono(pedidoEditar.cliente_telefono || '');

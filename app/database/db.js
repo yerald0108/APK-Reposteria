@@ -220,15 +220,33 @@ export const updateReceta = async (id, nombre, unidades, pct_adicionales, pct_be
 export const deleteReceta = async (id) => {
   try {
     const currentDb = getDb();
+    
+    // Verificar si la receta está siendo usada en algún pedido
+    const resultado = await currentDb.getFirstAsync(
+      'SELECT COUNT(*) as total FROM pedido_productos WHERE receta_id = ?',
+      [id]
+    );
+    
+    // Si hay pedidos que usan esta receta, no permitir eliminarla
+    if (resultado.total > 0) {
+      throw new Error(
+        `Esta receta está siendo utilizada en ${resultado.total} pedido(s). ` +
+        'Elimina primero los pedidos que la contienen antes de borrar la receta.'
+      );
+    }
+    
+    // Si no hay pedidos, eliminar ingredientes primero
     await currentDb.runAsync(
       'DELETE FROM receta_materiales WHERE receta_id = ?', [id]
     );
+    
+    // Luego eliminar la receta
     return await currentDb.runAsync(
       'DELETE FROM recetas WHERE id = ?', [id]
     );
   } catch (error) {
     console.error('deleteReceta:', error);
-    throw new Error('No se pudo eliminar la receta.');
+    throw new Error(error.message || 'No se pudo eliminar la receta.');
   }
 };
 

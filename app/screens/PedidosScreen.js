@@ -11,7 +11,6 @@ import { useApp } from '../contexts/AppContext';
 
 export default function PedidosScreen({ navigation }) {
   const { pedidos, cargarPedidos } = useApp();
-  const [pedidos, setPedidos] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const scrollY = useRef(new Animated.Value(0)).current;
 

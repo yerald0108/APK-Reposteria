@@ -11,7 +11,6 @@ import { useApp } from '../contexts/AppContext';
 
 export default function EntregasScreen({ navigation }) {
   const { entregas, cargarEntregas, cargandoEntregas } = useApp();
-  const [entregas, setEntregas] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const scrollY = useRef(new Animated.Value(0)).current;
 

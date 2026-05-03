@@ -43,13 +43,17 @@ export default function FormRecetaScreen({ navigation, route }) {
     const cargar = async () => {
       const mats = await getMateriales();
       setTodosMateriales(mats);
+
       if (recetaExistente) {
+        // Cargar datos del formulario
         setForm({
           nombre:          recetaExistente.nombre,
           unidades:        String(recetaExistente.unidades),
           pct_adicionales: String(recetaExistente.porcentaje_costos_adicionales),
           pct_beneficio:   String(recetaExistente.porcentaje_beneficio),
         });
+
+        // Cargar ingredientes
         const ings = await getIngredientesByReceta(recetaExistente.id);
         const ingsData = ings.map((i) => ({
           material_id: i.material_id,
