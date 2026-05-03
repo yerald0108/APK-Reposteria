@@ -19,6 +19,7 @@ import {
   mensajeIncompatibilidad,
   TIPO_UNIDAD,
 } from '../utils/conversions';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 const EMPTY_FORM = {
   nombre: '',
@@ -41,6 +42,8 @@ export default function FormRecetaScreen({ navigation, route }) {
   const [modalResult, setModalResult]         = useState(false);
   const [todosMateriales, setTodosMateriales] = useState([]);
   const [errorUnidad, setErrorUnidad]         = useState('');
+  const [guardando, setGuardando]             = useState(false);
+  const [editandoIngrediente, setEditandoIngrediente] = useState(null); // id del material que estamos editando
   // ─── Real-time Calculation ──────────────────────────────────
   useEffect(() => {
     const unidades = parseFloat(form.unidades);
@@ -115,11 +118,22 @@ export default function FormRecetaScreen({ navigation, route }) {
       Alert.alert('Ya agregado', 'Este material ya está en la receta.');
       return;
     }
+    setEditandoIngrediente(null);
     setMatSeleccionado(mat);
     setCantidadInput('');
     setUnidadSeleccionada(mat.unidad);
-    setErrorUnidad(''); // limpiamos error previo
+    setErrorUnidad('');
     setModalMat(false);
+    setModalCant(true);
+  };
+
+  const abrirEditarIngrediente = (ing) => {
+    const mat = todosMateriales.find(m => m.id === ing.material_id);
+    if (!mat) return;
+    setMatSeleccionado(mat);
+    setCantidadInput(String(ing.cantidad));
+    setUnidadSeleccionada(ing.unidad);
+    setEditandoIngrediente(ing.material_id);
     setModalCant(true);
   };
 
@@ -137,19 +151,28 @@ export default function FormRecetaScreen({ navigation, route }) {
       return;
     }
 
-    setIngredientes([
-      ...ingredientes,
-      {
-        material_id: matSeleccionado.id,
-        nombre:      matSeleccionado.nombre,
-        unidad:      unidadSeleccionada,
-        unidad_base: matSeleccionado.unidad,
-        precio:      matSeleccionado.precio,
-        contenido:   matSeleccionado.contenido,
-        cantidad:    parseFloat(cantidadInput),
-      },
-    ]);
+    if (editandoIngrediente) {
+      setIngredientes(ingredientes.map(i => 
+        i.material_id === editandoIngrediente 
+        ? { ...i, cantidad: parseFloat(cantidadInput), unidad: unidadSeleccionada }
+        : i
+      ));
+    } else {
+      setIngredientes([
+        ...ingredientes,
+        {
+          material_id: matSeleccionado.id,
+          nombre:      matSeleccionado.nombre,
+          unidad:      unidadSeleccionada,
+          unidad_base: matSeleccionado.unidad,
+          precio:      matSeleccionado.precio,
+          contenido:   matSeleccionado.contenido,
+          cantidad:    parseFloat(cantidadInput),
+        },
+      ]);
+    }
     setErrorUnidad('');
+    setEditandoIngrediente(null);
     setModalCant(false);
   };
 
@@ -170,6 +193,7 @@ export default function FormRecetaScreen({ navigation, route }) {
 
     const { nombre, unidades, pct_adicionales, pct_beneficio } = form;
 
+    setGuardando(true);
     try {
       if (recetaExistente) {
         // Actualizar datos de la receta
@@ -221,6 +245,8 @@ export default function FormRecetaScreen({ navigation, route }) {
     } catch (error) {
       console.error('Error al guardar receta:', error);
       Alert.alert('Error', 'No se pudo guardar la receta. Intenta de nuevo.');
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -291,15 +317,20 @@ export default function FormRecetaScreen({ navigation, route }) {
                       </TouchableOpacity>
                     )}
                   >
-                    <View style={styles.ingCard}>
-                      <View style={styles.ingInfo}>
-                        <Text style={styles.ingNombre}>{ing.nombre}</Text>
-                        <Text style={styles.ingDetalle}>
-                          {ing.cantidad} {ing.unidad}  ·  ${costoIngrediente(ing).toFixed(4)}
-                        </Text>
+                    <TouchableOpacity 
+                      activeOpacity={0.7} 
+                      onPress={() => abrirEditarIngrediente(ing)}
+                    >
+                      <View style={styles.ingCard}>
+                        <View style={styles.ingInfo}>
+                          <Text style={styles.ingNombre}>{ing.nombre}</Text>
+                          <Text style={styles.ingDetalle}>
+                            {ing.cantidad} {ing.unidad}  ·  ${costoIngrediente(ing).toFixed(4)}
+                          </Text>
+                        </View>
+                        <Ionicons name="pencil-outline" size={18} color="#F59E0B" />
                       </View>
-                      <Ionicons name="reorder-two-outline" size={20} color="#333" />
-                    </View>
+                    </TouchableOpacity>
                   </Swipeable>
                 ))
               )}
@@ -438,6 +469,8 @@ export default function FormRecetaScreen({ navigation, route }) {
         </View>
       </Modal>
 
+      <LoadingOverlay visible={guardando} message="Guardando receta..." />
+
       {/* Modal seleccionar material */}
       <Modal visible={modalMat} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -562,11 +595,11 @@ export default function FormRecetaScreen({ navigation, route }) {
               </View>
             )}
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.btnCancelar} onPress={() => setModalCant(false)}>
+              <TouchableOpacity style={styles.btnCancelar} onPress={() => { setModalCant(false); setEditandoIngrediente(null); }}>
                 <Text style={styles.btnCancelarTxt}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.btnConfirmar} onPress={confirmarCantidad}>
-                <Text style={styles.btnConfirmarTxt}>Confirmar</Text>
+                <Text style={styles.btnConfirmarTxt}>{editandoIngrediente ? 'Actualizar' : 'Confirmar'}</Text>
               </TouchableOpacity>
             </View>
           </View>

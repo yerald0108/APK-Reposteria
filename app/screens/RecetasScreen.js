@@ -9,9 +9,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import { deleteReceta, getIngredientesByReceta } from '../database/db';
 import { useApp } from '../contexts/AppContext';
 import { calcularCostoIngrediente } from '../utils/conversions';
+import Skeleton from '../components/Skeleton';
 
 export default function RecetasScreen({ navigation }) {
-  const { recetas, cargarRecetas } = useApp();
+  const { recetas, cargarRecetas, cargandoRecetas } = useApp();
   const [busqueda, setBusqueda] = useState('');
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -59,6 +60,26 @@ export default function RecetasScreen({ navigation }) {
     return { costoTotal, valorVentaUnit, gananciaTotal };
   };
 
+  const renderSkeleton = () => (
+    <View style={styles.card}>
+      <View style={styles.cardMain}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardTitleBox}>
+            <Skeleton width="60%" height={22} style={{ marginBottom: 6 }} />
+            <Skeleton width="30%" height={12} />
+          </View>
+        </View>
+        <View style={styles.statsGrid}>
+          <View style={styles.statItem}><Skeleton width="40%" height={16} /></View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}><Skeleton width="40%" height={16} /></View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}><Skeleton width="40%" height={16} /></View>
+        </View>
+      </View>
+    </View>
+  );
+
   const renderItem = ({ item, index }) => (
     <RecetaItem 
       item={item} 
@@ -98,9 +119,13 @@ export default function RecetasScreen({ navigation }) {
       </View>
 
       <Animated.FlatList
-        data={filtrarRecetas()}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={renderItem}
+        data={
+          cargandoRecetas 
+          ? [1, 2, 3, 4] 
+          : filtrarRecetas()
+        }
+        keyExtractor={(item, index) => cargandoRecetas ? `sk-${index}` : String(item.id)}
+        renderItem={cargandoRecetas ? renderSkeleton : renderItem}
         contentContainerStyle={styles.listContent}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],

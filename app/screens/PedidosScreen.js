@@ -8,9 +8,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { deletePedido } from '../database/db';
 import { useApp } from '../contexts/AppContext';
+import Skeleton from '../components/Skeleton';
 
 export default function PedidosScreen({ navigation }) {
-  const { pedidos, cargarPedidos, config } = useApp();
+  const { pedidos, cargarPedidos, config, cargandoPedidos } = useApp();
   const [busqueda, setBusqueda] = useState('');
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -52,6 +53,29 @@ export default function PedidosScreen({ navigation }) {
       }
     });
   };
+
+  const renderSkeleton = () => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={{ flex: 1 }}>
+          <Skeleton width="60%" height={20} style={{ marginBottom: 8 }} />
+          <Skeleton width="40%" height={12} />
+        </View>
+        <Skeleton width="20%" height={20} borderRadius={10} />
+      </View>
+      <View style={styles.productsBox}>
+        <Skeleton width="80%" height={14} />
+      </View>
+      <View style={styles.detailsBox}>
+        <Skeleton width="25%" height={12} />
+        <Skeleton width="25%" height={12} />
+        <Skeleton width="25%" height={12} />
+      </View>
+      <View style={styles.cardFooter}>
+        <Skeleton width="40%" height={25} />
+      </View>
+    </View>
+  );
 
   const confirmarEliminar = (item) => {
     Alert.alert(
@@ -172,9 +196,13 @@ export default function PedidosScreen({ navigation }) {
       </View>
 
       <Animated.FlatList
-        data={filtrarPedidos()}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={renderItem}
+        data={
+          cargandoPedidos
+          ? [1, 2, 3]
+          : filtrarPedidos()
+        }
+        keyExtractor={(item, index) => cargandoPedidos ? `sk-${index}` : String(item.id)}
+        renderItem={cargandoPedidos ? renderSkeleton : renderItem}
         contentContainerStyle={styles.listContent}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],

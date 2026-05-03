@@ -102,6 +102,15 @@ export const initDatabase = async () => {
     await db.runAsync("INSERT INTO config (clave, valor) VALUES ('nombre_usuario', 'Pastelero')");
     await db.runAsync("INSERT INTO config (clave, valor) VALUES ('nombre_negocio', 'Mi Repostería')");
   }
+
+  // HISTORIAL PRECIOS
+  await db.execAsync(`CREATE TABLE IF NOT EXISTS historial_precios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    material_id INTEGER NOT NULL,
+    precio REAL NOT NULL,
+    fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (material_id) REFERENCES materiales(id) ON DELETE CASCADE
+  )`);
 };
 
 export const getDb = () => db;
@@ -135,10 +144,16 @@ export const getMaterialById = async (id) => {
 export const addMaterial = async (nombre, precio, contenido, unidad) => {
   try {
     const currentDb = getDb();
-    return await currentDb.runAsync(
+    const result = await currentDb.runAsync(
       'INSERT INTO materiales (nombre, precio, contenido, unidad) VALUES (?, ?, ?, ?)',
       [nombre, precio, contenido, unidad]
     );
+    // Guardamos el primer precio en el historial
+    await currentDb.runAsync(
+      'INSERT INTO historial_precios (material_id, precio) VALUES (?, ?)',
+      [result.lastInsertRowId, precio]
+    );
+    return result;
   } catch (error) {
     console.error('addMaterial:', error);
     throw new Error('No se pudo guardar el material.');
@@ -148,13 +163,37 @@ export const addMaterial = async (nombre, precio, contenido, unidad) => {
 export const updateMaterial = async (id, nombre, precio, contenido, unidad) => {
   try {
     const currentDb = getDb();
-    return await currentDb.runAsync(
+    const materialPrevio = await currentDb.getFirstAsync('SELECT precio FROM materiales WHERE id = ?', [id]);
+    
+    const result = await currentDb.runAsync(
       'UPDATE materiales SET nombre = ?, precio = ?, contenido = ?, unidad = ? WHERE id = ?',
       [nombre, precio, contenido, unidad, id]
     );
+
+    // Si el precio cambió, lo registramos en el historial
+    if (materialPrevio && materialPrevio.precio !== precio) {
+      await currentDb.runAsync(
+        'INSERT INTO historial_precios (material_id, precio) VALUES (?, ?)',
+        [id, precio]
+      );
+    }
+    return result;
   } catch (error) {
     console.error('updateMaterial:', error);
     throw new Error('No se pudo actualizar el material.');
+  }
+};
+
+export const getHistorialPrecios = async (materialId) => {
+  try {
+    const currentDb = getDb();
+    return await currentDb.getAllAsync(
+      'SELECT * FROM historial_precios WHERE material_id = ? ORDER BY fecha DESC',
+      [materialId]
+    );
+  } catch (error) {
+    console.error('getHistorialPrecios:', error);
+    throw new Error('No se pudo cargar el historial de precios.');
   }
 };
 

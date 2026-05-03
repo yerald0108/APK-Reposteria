@@ -14,6 +14,7 @@ const screenWidth = Dimensions.get('window').width;
 export default function EstadisticasScreen({ navigation }) {
   const [data, setData] = useState([]);
   const [filtro, setFiltro] = useState('mensual'); // diario, semanal, mensual, anual
+  const [cargando, setCargando] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -22,8 +23,13 @@ export default function EstadisticasScreen({ navigation }) {
   );
 
   const cargarData = async () => {
-    const res = await getEstadisticasData();
-    setData(res);
+    setCargando(true);
+    try {
+      const res = await getEstadisticasData();
+      setData(res);
+    } finally {
+      setCargando(false);
+    }
   };
 
   const stats = useMemo(() => {
@@ -103,6 +109,22 @@ export default function EstadisticasScreen({ navigation }) {
     style: { borderRadius: 16 },
     propsForDots: { r: '4', strokeWidth: '2', stroke: '#F59E0B' }
   };
+
+  if (cargando) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Estadísticas</Text>
+        </View>
+        <View style={styles.emptyBox}>
+          <Text style={{ color: '#F59E0B', fontWeight: '700' }}>Procesando datos...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!stats) {
     return (

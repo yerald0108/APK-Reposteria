@@ -8,9 +8,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { addMaterial, updateMaterial, deleteMaterial, searchMateriales } from '../database/db';
+import { addMaterial, updateMaterial, deleteMaterial, getHistorialPrecios } from '../database/db';
 import { useApp } from '../contexts/AppContext';
 import { UNIDADES } from '../utils/conversions';
+import Skeleton from '../components/Skeleton';
 
 const EMPTY_FORM = { nombre: '', precio: '', contenido: '', unidad: 'g' };
 
@@ -20,6 +21,9 @@ export default function MaterialesScreen({ navigation }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [editando, setEditando] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [historialModal, setHistorialModal] = useState(false);
+  const [historialData, setHistorialData] = useState([]);
+  const [materialSeleccionado, setMaterialSeleccionado] = useState(null);
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -48,6 +52,17 @@ export default function MaterialesScreen({ navigation }) {
       unidad: item.unidad,
     });
     setModalVisible(true);
+  };
+
+  const abrirHistorial = async (item) => {
+    setMaterialSeleccionado(item);
+    try {
+      const history = await getHistorialPrecios(item.id);
+      setHistorialData(history);
+      setHistorialModal(true);
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo cargar el historial.');
+    }
   };
 
   const guardar = async () => {
@@ -90,6 +105,22 @@ export default function MaterialesScreen({ navigation }) {
     );
   };
 
+  const renderSkeleton = () => (
+    <View style={styles.card}>
+      <View style={[styles.cardColorBar, { backgroundColor: '#16213e' }]} />
+      <View style={styles.cardContent}>
+        <View style={styles.cardInfo}>
+          <Skeleton width="70%" height={20} style={{ marginBottom: 8 }} />
+          <View style={styles.cardDetailRow}>
+            <Skeleton width="20%" height={12} />
+            <Skeleton width="20%" height={12} />
+          </View>
+          <Skeleton width="30%" height={14} style={{ marginTop: 10 }} />
+        </View>
+      </View>
+    </View>
+  );
+
   const renderItem = ({ item, index }) => {
     const scale = scrollY.interpolate({
       inputRange: [-1, 0, (index * 100), (index + 2) * 100],
@@ -120,6 +151,9 @@ export default function MaterialesScreen({ navigation }) {
             </Text>
           </View>
           <View style={styles.cardActions}>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => abrirHistorial(item)}>
+              <Ionicons name="time-outline" size={18} color="#10B981" />
+            </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} onPress={() => abrirEditar(item)}>
               <Ionicons name="pencil" size={18} color="#F59E0B" />
             </TouchableOpacity>
@@ -166,14 +200,16 @@ export default function MaterialesScreen({ navigation }) {
 
       <Animated.FlatList
         data={
-          busqueda.trim()
-          ? materiales.filter(m =>
-              m.nombre.toLowerCase().includes(busqueda.toLowerCase())
-            )
-          : materiales
+          cargandoMateriales
+          ? [1, 2, 3, 4, 5, 6] // Dummy data for skeletons
+          : (busqueda.trim()
+            ? materiales.filter(m =>
+                m.nombre.toLowerCase().includes(busqueda.toLowerCase())
+              )
+            : materiales)
         }
-        keyExtractor={(item) => String(item.id)}
-        renderItem={renderItem}
+        keyExtractor={(item, index) => cargandoMateriales ? `sk-${index}` : String(item.id)}
+        renderItem={cargandoMateriales ? renderSkeleton : renderItem}
         contentContainerStyle={styles.listContent}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -268,6 +304,48 @@ export default function MaterialesScreen({ navigation }) {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <Modal visible={historialModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Historial de Precios</Text>
+                <Text style={{ color: '#F59E0B', fontWeight: '700' }}>{materialSeleccionado?.nombre}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setHistorialModal(false)} style={styles.closeModalBtn}>
+                <Ionicons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={historialData}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item, index }) => {
+                const previo = historialData[index + 1];
+                const subio = previo ? item.precio > previo.precio : null;
+                return (
+                  <View style={styles.historyItem}>
+                    <View style={styles.historyDateBox}>
+                      <Text style={styles.historyDate}>{new Date(item.fecha).toLocaleDateString()}</Text>
+                      <Text style={styles.historyTime}>{new Date(item.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                    </View>
+                    <Text style={styles.historyPrice}>${item.precio.toFixed(2)}</Text>
+                    {subio !== null && (
+                      <Ionicons 
+                        name={subio ? "trending-up" : "trending-down"} 
+                        size={16} 
+                        color={subio ? "#EF4444" : "#10B981"} 
+                      />
+                    )}
+                  </View>
+                );
+              }}
+              ListEmptyComponent={<Text style={styles.emptyText}>No hay cambios registrados.</Text>}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -316,4 +394,12 @@ const styles = StyleSheet.create({
   unidadTxtActive: { color: '#000' },
   btnGuardar: { backgroundColor: '#F59E0B', borderRadius: 18, padding: 18, alignItems: 'center', marginTop: 32 },
   btnGuardarTxt: { color: '#000', fontWeight: '800', fontSize: 16 },
+
+  // Historial
+  historyItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#ffffff05' },
+  historyDateBox: { flex: 1 },
+  historyDate: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  historyTime: { color: '#555', fontSize: 11, marginTop: 2 },
+  historyPrice: { color: '#fff', fontSize: 16, fontWeight: '800', marginRight: 10 },
+  emptyText: { color: '#666', textAlign: 'center', marginTop: 20, fontSize: 14 },
 });
