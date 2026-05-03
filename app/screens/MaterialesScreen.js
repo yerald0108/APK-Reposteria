@@ -11,6 +11,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { addMaterial, updateMaterial, deleteMaterial, getHistorialPrecios } from '../database/db';
 import { useApp } from '../contexts/AppContext';
 import { UNIDADES } from '../utils/conversions';
+import { validarMaterial } from '../utils/validaciones';
 import Skeleton from '../components/Skeleton';
 
 const EMPTY_FORM = { nombre: '', precio: '', contenido: '', unidad: 'g' };
@@ -66,19 +67,32 @@ export default function MaterialesScreen({ navigation }) {
   };
 
   const guardar = async () => {
-    const { nombre, precio, contenido, unidad } = form;
-    if (!nombre.trim() || !precio || !contenido) {
-      Alert.alert('Campos requeridos', 'Completa todos los campos.');
+    const error = validarMaterial(form);
+    if (error) {
+      Alert.alert('Datos inválidos', error);
       return;
     }
+
+    const { nombre, precio, contenido, unidad } = form;
     try {
       if (editando) {
-        await updateMaterial(editando.id, nombre.trim(), parseFloat(precio), parseFloat(contenido), unidad);
+        await updateMaterial(
+          editando.id,
+          nombre.trim(),
+          parseFloat(precio),
+          parseFloat(contenido),
+          unidad
+        );
       } else {
-        await addMaterial(nombre.trim(), parseFloat(precio), parseFloat(contenido), unidad);
+        await addMaterial(
+          nombre.trim(),
+          parseFloat(precio),
+          parseFloat(contenido),
+          unidad
+        );
       }
       setModalVisible(false);
-      cargarMateriales(); // recarga el contexto global
+      cargarMateriales();
     } catch (error) {
       Alert.alert('Error', error.message || 'Ocurrió un error inesperado.');
     }

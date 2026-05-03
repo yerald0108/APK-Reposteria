@@ -14,7 +14,8 @@ import {
   getIngredientesByReceta,
 } from '../database/db';
 import { useApp } from '../contexts/AppContext';
-import { calcularCostoIngrediente } from '../utils/conversions';
+import { calcularCostosReceta } from '../utils/conversions';
+import { validarPedido } from '../utils/validaciones';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -98,12 +99,12 @@ export default function FormPedidoScreen({ navigation, route }) {
         const r = recetasConPrecio.find(rec => rec.id === p.receta_id);
         if (!r) return null;
         const ingredientes = await getIngredientesByReceta(p.receta_id);
-        const costoMat = ingredientes.reduce(
-          (sum, ing) => sum + calcularCostoIngrediente(ing), 0
+        const { precioVenta } = calcularCostosReceta(
+          ingredientes,
+          r.unidades,
+          r.porcentaje_costos_adicionales,
+          r.porcentaje_beneficio
         );
-        const costoAdicional = costoMat * (r.porcentaje_costos_adicionales / 100);
-        const costoTotalRec = costoMat + costoAdicional;
-        const precioVenta = (costoTotalRec / r.unidades) * (1 + r.porcentaje_beneficio / 100);
         return { id: p.receta_id, nombre: p.receta_nombre, cantidad: p.cantidad, precioVenta };
       })
     );
@@ -131,13 +132,27 @@ export default function FormPedidoScreen({ navigation, route }) {
         Alert.alert('Campo requerido', 'Ingresa el nombre del cliente.');
         return false;
       }
+      if (nombre.trim().length < 2) {
+        Alert.alert('Campo inválido', 'El nombre debe tener al menos 2 caracteres.');
+        return false;
+      }
     }
+
     if (step === 1) {
       if (productosSeleccionados.length === 0) {
         Alert.alert('Sin productos', 'Agrega al menos un producto al pedido.');
         return false;
       }
     }
+
+    if (step === 3) {
+      const costoNum = parseFloat(costoTotal);
+      if (isNaN(costoNum) || costoNum < 0) {
+        Alert.alert('Costo inválido', 'El costo total no puede ser negativo.');
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -153,10 +168,16 @@ export default function FormPedidoScreen({ navigation, route }) {
 
   // ─── Guardar pedido ────────────────────────────────────────
   const guardar = async () => {
-    if (!nombre.trim() || productosSeleccionados.length === 0) {
-      Alert.alert('Faltan datos', 'Revisa cliente y productos.');
+    const error = validarPedido({
+      nombre,
+      productos:  productosSeleccionados,
+      costoTotal,
+    });
+    if (error) {
+      Alert.alert('Datos inválidos', error);
       return;
     }
+
     setGuardando(true);
     try {
       const fechaStr = [

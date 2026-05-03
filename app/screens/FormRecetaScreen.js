@@ -4,7 +4,7 @@ import {
   TouchableOpacity, TextInput, ScrollView, Alert, Modal, FlatList,
   KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard,
 } from 'react-native';
-import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
+import { Swipeable } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -15,10 +15,12 @@ import {
   UNIDADES,
   convertir,
   calcularCostoIngrediente,
+  calcularCostosReceta,
   sonCompatibles,
   mensajeIncompatibilidad,
   TIPO_UNIDAD,
 } from '../utils/conversions';
+import { validarReceta, validarIngrediente } from '../utils/validaciones';
 import LoadingOverlay from '../components/LoadingOverlay';
 
 const EMPTY_FORM = {
@@ -52,32 +54,20 @@ export default function FormRecetaScreen({ navigation, route }) {
       return;
     }
 
-    const pctAd  = parseFloat(form.pct_adicionales)  || 0;
-    const pctBen = parseFloat(form.pct_beneficio) || 0;
+    const pctAd  = parseFloat(form.pct_adicionales) || 0;
+    const pctBen = parseFloat(form.pct_beneficio)   || 0;
 
-    const costoMateriales = ingredientes.reduce((total, ing) => {
-      return total + calcularCostoIngrediente(ing);
-    }, 0);
+    const calculo = calcularCostosReceta(ingredientes, unidades, pctAd, pctBen);
 
-    const costoAdicionales = costoMateriales * (pctAd / 100);
-    const costoTotal       = costoMateriales + costoAdicionales;
-    const costoUnitario    = costoTotal / unidades;
-    const valorVentaUnit   = costoUnitario * (1 + pctBen / 100);
-    const ingresosTotales  = valorVentaUnit * unidades;
-    const gananciaTotal    = ingresosTotales - costoTotal;
-    const gananciaUnitario = valorVentaUnit - costoUnitario;
-
-    setResultado({ 
-      costoMateriales, 
-      costoAdicionales, 
-      costoTotal, 
-      costoUnitario, 
-      valorVentaUnit, 
-      ingresosTotales,
-      gananciaTotal,
-      gananciaUnitario,
+    setResultado({
+      ...calculo,
+      // FormRecetaScreen usa estos nombres distintos, los mantenemos
+      // para no tocar el JSX del modal de resultados
+      costoAdicionales: calculo.costoAdicional,
+      valorVentaUnit:   calculo.precioVenta,
+      gananciaUnitario: calculo.gananciaUnitario,
       pctAd,
-      pctBen
+      pctBen,
     });
   }, [form.unidades, form.pct_adicionales, form.pct_beneficio, ingredientes]);
 
@@ -138,8 +128,13 @@ export default function FormRecetaScreen({ navigation, route }) {
   };
 
   const confirmarCantidad = () => {
-    if (!cantidadInput || isNaN(cantidadInput) || parseFloat(cantidadInput) <= 0) {
-      Alert.alert('Cantidad inválida', 'Ingresa una cantidad mayor a 0.');
+    const errorIng = validarIngrediente({
+      cantidad:  cantidadInput,
+      unidad:    unidadSeleccionada,
+      material:  matSeleccionado,
+    });
+    if (errorIng) {
+      Alert.alert('Datos inválidos', errorIng);
       return;
     }
 
@@ -182,12 +177,15 @@ export default function FormRecetaScreen({ navigation, route }) {
 
 
   const guardar = async () => {
-    if (!form.nombre.trim()) {
-      Alert.alert('Falta nombre', 'Escribe el nombre de la receta.');
-      return;
-    }
-    if (!resultado) {
-      Alert.alert('Incompleto', 'Agrega ingredientes y unidades para calcular el costo.');
+    const error = validarReceta({
+      nombre:          form.nombre,
+      unidades:        form.unidades,
+      pct_adicionales: form.pct_adicionales || '0',
+      pct_beneficio:   form.pct_beneficio   || '0',
+      ingredientes,
+    });
+    if (error) {
+      Alert.alert('Datos inválidos', error);
       return;
     }
 
@@ -269,7 +267,6 @@ export default function FormRecetaScreen({ navigation, route }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
         style={{ flex: 1 }}
       >
-        <GestureHandlerRootView style={{ flex: 1 }}>
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
@@ -390,7 +387,7 @@ export default function FormRecetaScreen({ navigation, route }) {
               <View style={{ height: 40 }} />
             </ScrollView>
           </TouchableWithoutFeedback>
-        </GestureHandlerRootView>
+       
       </KeyboardAvoidingView>
 
       <Modal visible={modalResult} animationType="slide" transparent>

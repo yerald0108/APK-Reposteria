@@ -15,7 +15,7 @@ import {
   getConfig,
   updateConfig,
 } from '../database/db';
-import { calcularCostoIngrediente } from '../utils/conversions';
+import { calcularCostoIngrediente, calcularCostosReceta } from '../utils/conversions';
 
 // ─── Creamos el contexto ───────────────────────────────────────
 const AppContext = createContext();
@@ -70,12 +70,12 @@ export function AppProvider({ children }) {
       // para usarlo en FormPedido sin recalcular cada vez
       const conPrecio = await Promise.all(data.map(async (r) => {
         const ingredientes = await getIngredientesByReceta(r.id);
-        const costoMat = ingredientes.reduce(
-          (sum, ing) => sum + calcularCostoIngrediente(ing), 0
+        const { precioVenta } = calcularCostosReceta(
+          ingredientes,
+          r.unidades,
+          r.porcentaje_costos_adicionales,
+          r.porcentaje_beneficio
         );
-        const costoAdicional = costoMat * (r.porcentaje_costos_adicionales / 100);
-        const costoTotal = costoMat + costoAdicional;
-        const precioVenta = (costoTotal / r.unidades) * (1 + r.porcentaje_beneficio / 100);
         return { ...r, precioVenta };
       }));
 

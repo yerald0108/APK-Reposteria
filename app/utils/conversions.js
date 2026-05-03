@@ -74,3 +74,55 @@ export const calcularCostoIngrediente = (ing) => {
 
   return (ing.precio / ing.contenido) * cantBase;
 };
+
+// ─── CÁLCULOS DE RECETA ────────────────────────────────────────
+
+/**
+ * Calcula todos los costos de una receta dado su array de ingredientes
+ * y sus parámetros (unidades, porcentajes).
+ * 
+ * @param {Array}  ingredientes  - array de ingredientes con cantidad, unidad, precio, etc.
+ * @param {number} unidades      - cuántas unidades rinde la receta
+ * @param {number} pctAdicional  - % costos adicionales (luz, gas, mano de obra)
+ * @param {number} pctBeneficio  - % de ganancia esperada
+ * @returns {Object} - todos los valores calculados
+ */
+export const calcularCostosReceta = (ingredientes, unidades, pctAdicional, pctBeneficio) => {
+  // Costo total de los materiales usados
+  const costoMateriales = ingredientes.reduce(
+    (total, ing) => total + calcularCostoIngrediente(ing),
+    0
+  );
+
+  // Costo adicional (luz, gas, mano de obra, etc.)
+  const costoAdicional = costoMateriales * (pctAdicional / 100);
+
+  // Costo total de producir toda la receta
+  const costoTotal = costoMateriales + costoAdicional;
+
+  // Costo de producir UNA unidad
+  const costoUnitario = unidades > 0 ? costoTotal / unidades : 0;
+
+  // Precio de venta sugerido por unidad (con ganancia)
+  const precioVenta = costoUnitario * (1 + pctBeneficio / 100);
+
+  // Ganancia por unidad vendida
+  const gananciaUnitario = precioVenta - costoUnitario;
+
+  // Si vendes todas las unidades, cuánto ingresas
+  const ingresosTotales = precioVenta * unidades;
+
+  // Ganancia total si vendes todo
+  const gananciaTotal = ingresosTotales - costoTotal;
+
+  return {
+    costoMateriales,
+    costoAdicional,
+    costoTotal,
+    costoUnitario,
+    precioVenta,
+    gananciaUnitario,
+    ingresosTotales,
+    gananciaTotal,
+  };
+};

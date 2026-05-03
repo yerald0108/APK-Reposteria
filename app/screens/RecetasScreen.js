@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { deleteReceta, getIngredientesByReceta } from '../database/db';
 import { useApp } from '../contexts/AppContext';
-import { calcularCostoIngrediente } from '../utils/conversions';
+import { calcularCostosReceta } from '../utils/conversions';
 import Skeleton from '../components/Skeleton';
 
 export default function RecetasScreen({ navigation }) {
@@ -50,14 +50,13 @@ export default function RecetasScreen({ navigation }) {
 
   const calcularResumen = async (receta) => {
     const ingredientes = await getIngredientesByReceta(receta.id);
-    const costoMat = ingredientes.reduce((total, ing) => {
-      return total + calcularCostoIngrediente(ing);
-    }, 0);
-    const costoAdicional = costoMat * (receta.porcentaje_costos_adicionales / 100);
-    const costoTotal     = costoMat + costoAdicional;
-    const valorVentaUnit = (costoTotal / receta.unidades) * (1 + receta.porcentaje_beneficio / 100);
-    const gananciaTotal  = (valorVentaUnit * receta.unidades) - costoTotal;
-    return { costoTotal, valorVentaUnit, gananciaTotal };
+    const { costoTotal, precioVenta, gananciaTotal } = calcularCostosReceta(
+      ingredientes,
+      receta.unidades,
+      receta.porcentaje_costos_adicionales,
+      receta.porcentaje_beneficio
+    );
+    return { costoTotal, valorVentaUnit: precioVenta, gananciaTotal };
   };
 
   const renderSkeleton = () => (
