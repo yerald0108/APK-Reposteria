@@ -12,6 +12,8 @@ import {
   getIngredientesByReceta,
   getPedidosConDetalles,
   getEstadisticasData,
+  getConfig,
+  updateConfig,
 } from '../database/db';
 import { calcularCostoIngrediente } from '../utils/conversions';
 
@@ -36,6 +38,7 @@ export function AppProvider({ children }) {
   const [pedidos, setPedidos]         = useState([]);
   const [entregas, setEntregas]       = useState([]);
   const [recetasConPrecio, setRecetasConPrecio] = useState([]);
+  const [config, setConfig]           = useState({ nombre_usuario: '', nombre_negocio: '' });
 
   // Estados de carga
   const [cargandoMateriales, setCargandoMateriales] = useState(false);
@@ -111,12 +114,35 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  // ─── Cargar configuración ───────────────────────────────────
+  const cargarConfig = useCallback(async () => {
+    try {
+      const data = await getConfig();
+      setConfig(data);
+    } catch (error) {
+      console.error('Error al cargar config:', error);
+    }
+  }, []);
+
+  const actualizarPerfil = async (nombre, negocio) => {
+    try {
+      await updateConfig('nombre_usuario', nombre);
+      await updateConfig('nombre_negocio', negocio);
+      setConfig({ nombre_usuario: nombre, nombre_negocio: negocio });
+      return true;
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo actualizar el perfil.');
+      return false;
+    }
+  };
+
   // ─── Carga inicial al montar el provider ────────────────────
   useEffect(() => {
     cargarMateriales();
     cargarRecetas();
     cargarPedidos();
     cargarEntregas();
+    cargarConfig();
   }, []);
 
   // ─── Lo que exponemos a todas las pantallas ─────────────────
@@ -127,6 +153,8 @@ export function AppProvider({ children }) {
     recetasConPrecio,
     pedidos,
     entregas,
+    config,
+    actualizarPerfil,
 
     // Estados de carga
     cargandoMateriales,

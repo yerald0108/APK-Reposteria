@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, StatusBar,
   TouchableOpacity, TextInput, ScrollView, Alert, Modal, FlatList,
+  KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard,
 } from 'react-native';
+import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -39,6 +41,43 @@ export default function FormRecetaScreen({ navigation, route }) {
   const [modalResult, setModalResult]         = useState(false);
   const [todosMateriales, setTodosMateriales] = useState([]);
   const [errorUnidad, setErrorUnidad]         = useState('');
+  // ─── Real-time Calculation ──────────────────────────────────
+  useEffect(() => {
+    const unidades = parseFloat(form.unidades);
+    if (!unidades || unidades <= 0 || ingredientes.length === 0) {
+      setResultado(null);
+      return;
+    }
+
+    const pctAd  = parseFloat(form.pct_adicionales)  || 0;
+    const pctBen = parseFloat(form.pct_beneficio) || 0;
+
+    const costoMateriales = ingredientes.reduce((total, ing) => {
+      return total + calcularCostoIngrediente(ing);
+    }, 0);
+
+    const costoAdicionales = costoMateriales * (pctAd / 100);
+    const costoTotal       = costoMateriales + costoAdicionales;
+    const costoUnitario    = costoTotal / unidades;
+    const valorVentaUnit   = costoUnitario * (1 + pctBen / 100);
+    const ingresosTotales  = valorVentaUnit * unidades;
+    const gananciaTotal    = ingresosTotales - costoTotal;
+    const gananciaUnitario = valorVentaUnit - costoUnitario;
+
+    setResultado({ 
+      costoMateriales, 
+      costoAdicionales, 
+      costoTotal, 
+      costoUnitario, 
+      valorVentaUnit, 
+      ingresosTotales,
+      gananciaTotal,
+      gananciaUnitario,
+      pctAd,
+      pctBen
+    });
+  }, [form.unidades, form.pct_adicionales, form.pct_beneficio, ingredientes]);
+
   useEffect(() => {
     const cargar = async () => {
       const mats = await getMateriales();
@@ -65,51 +104,11 @@ export default function FormRecetaScreen({ navigation, route }) {
           cantidad:    i.cantidad,
         }));
         setIngredientes(ingsData);
-        
-        // Auto-calcular si existe
-        setTimeout(() => {
-          ejecutarCalculo(ingsData, String(recetaExistente.unidades), String(recetaExistente.porcentaje_costos_adicionales), String(recetaExistente.porcentaje_beneficio), true);
-        }, 500);
       }
     };
     cargar();
   }, []);
 
-  const ejecutarCalculo = (ings, units, pAd, pBen, auto = false) => {
-    const unidades = parseFloat(units);
-    if (!unidades || unidades <= 0 || ings.length === 0) return;
-
-    const pctAd  = parseFloat(pAd)  || 0;
-    const pctBen = parseFloat(pBen) || 0;
-
-    const costoMateriales = ings.reduce((total, ing) => {
-      return total + calcularCostoIngrediente(ing);
-    }, 0);
-
-    const costoAdicionales = costoMateriales * (pctAd / 100);
-    const costoTotal       = costoMateriales + costoAdicionales;
-    const costoUnitario    = costoTotal / unidades;
-    const valorVentaUnit   = costoUnitario * (1 + pctBen / 100);
-    const ingresosTotales  = valorVentaUnit * unidades;
-    const gananciaTotal    = ingresosTotales - costoTotal;
-    const gananciaUnitario = valorVentaUnit - costoUnitario;
-
-    setResultado({ 
-      costoMateriales, 
-      costoAdicionales, 
-      costoTotal, 
-      costoUnitario, 
-      valorVentaUnit, 
-      ingresosTotales,
-      gananciaTotal,
-      gananciaUnitario,
-      pctAd,
-      pctBen
-    });
-    
-    // Solo abrir el modal si fue manual
-    if (!auto) setModalResult(true);
-  };
 
   const seleccionarMaterial = (mat) => {
     if (ingredientes.find((i) => i.material_id === mat.id)) {
@@ -152,34 +151,20 @@ export default function FormRecetaScreen({ navigation, route }) {
     ]);
     setErrorUnidad('');
     setModalCant(false);
-    setResultado(null);
   };
 
   const quitarIngrediente = (material_id) => {
     setIngredientes(ingredientes.filter((i) => i.material_id !== material_id));
-    setResultado(null);
   };
 
-  const calcular = () => {
+
+  const guardar = async () => {
     if (!form.nombre.trim()) {
       Alert.alert('Falta nombre', 'Escribe el nombre de la receta.');
       return;
     }
-    if (!form.unidades || parseFloat(form.unidades) <= 0) {
-      Alert.alert('Falta unidades', 'Indica cuántas unidades rinde la receta.');
-      return;
-    }
-    if (ingredientes.length === 0) {
-      Alert.alert('Sin ingredientes', 'Agrega al menos un material.');
-      return;
-    }
-
-    ejecutarCalculo(ingredientes, form.unidades, form.pct_adicionales, form.pct_beneficio, false);
-  };
-
-  const guardar = async () => {
     if (!resultado) {
-      Alert.alert('Calcula primero', 'Presiona "Calcular" antes de guardar.');
+      Alert.alert('Incompleto', 'Agrega ingredientes y unidades para calcular el costo.');
       return;
     }
 
@@ -254,79 +239,128 @@ export default function FormRecetaScreen({ navigation, route }) {
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        style={{ flex: 1 }}
+      >
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
-        <Text style={styles.label}>Nombre de la receta</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ej: Torta de chocolate"
-          placeholderTextColor="#555"
-          value={form.nombre}
-          onChangeText={(v) => { setForm({ ...form, nombre: v }); setResultado(null); }}
-        />
+              <Text style={styles.label}>Nombre de la receta</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: Torta de chocolate"
+                placeholderTextColor="#555"
+                value={form.nombre}
+                onChangeText={(v) => { setForm({ ...form, nombre: v }); }}
+              />
 
-        <Text style={styles.label}>Unidades que rinde</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ej: 12"
-          placeholderTextColor="#555"
-          keyboardType="decimal-pad"
-          value={form.unidades}
-          onChangeText={(v) => { setForm({ ...form, unidades: v }); setResultado(null); }}
-        />
+              <Text style={styles.label}>Unidades que rinde</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: 12"
+                placeholderTextColor="#555"
+                keyboardType="decimal-pad"
+                value={form.unidades}
+                onChangeText={(v) => { setForm({ ...form, unidades: v }); }}
+              />
 
-        <View style={styles.seccionHeader}>
-          <Text style={styles.seccionTitulo}>Materiales</Text>
-          <TouchableOpacity style={styles.btnAgregarMat} onPress={() => setModalMat(true)}>
-            <Ionicons name="add" size={18} color="#000" />
-            <Text style={styles.btnAgregarMatTxt}>Agregar</Text>
-          </TouchableOpacity>
-        </View>
-
-        {ingredientes.length === 0 ? (
-          <View style={styles.emptyIng}>
-            <Text style={styles.emptyIngTxt}>Sin materiales agregados</Text>
-          </View>
-        ) : (
-          ingredientes.map((ing) => (
-            <View key={ing.material_id} style={styles.ingCard}>
-              <View style={styles.ingInfo}>
-                <Text style={styles.ingNombre}>{ing.nombre}</Text>
-                <Text style={styles.ingDetalle}>
-                  {ing.cantidad} {ing.unidad}  ·  ${costoIngrediente(ing).toFixed(4)}
-                </Text>
+              <View style={styles.seccionHeader}>
+                <Text style={styles.seccionTitulo}>Materiales (Desliza para eliminar)</Text>
+                <TouchableOpacity style={styles.btnAgregarMat} onPress={() => setModalMat(true)}>
+                  <Ionicons name="add" size={18} color="#000" />
+                  <Text style={styles.btnAgregarMatTxt}>Agregar</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={() => quitarIngrediente(ing.material_id)}>
-                <Ionicons name="close-circle" size={22} color="#EF4444" />
+
+              {ingredientes.length === 0 ? (
+                <View style={styles.emptyIng}>
+                  <Text style={styles.emptyIngTxt}>Sin materiales agregados</Text>
+                </View>
+              ) : (
+                ingredientes.map((ing) => (
+                  <Swipeable
+                    key={ing.material_id}
+                    renderRightActions={() => (
+                      <TouchableOpacity 
+                        style={styles.deleteAction} 
+                        onPress={() => quitarIngrediente(ing.material_id)}
+                      >
+                        <Ionicons name="trash-outline" size={24} color="#fff" />
+                      </TouchableOpacity>
+                    )}
+                  >
+                    <View style={styles.ingCard}>
+                      <View style={styles.ingInfo}>
+                        <Text style={styles.ingNombre}>{ing.nombre}</Text>
+                        <Text style={styles.ingDetalle}>
+                          {ing.cantidad} {ing.unidad}  ·  ${costoIngrediente(ing).toFixed(4)}
+                        </Text>
+                      </View>
+                      <Ionicons name="reorder-two-outline" size={20} color="#333" />
+                    </View>
+                  </Swipeable>
+                ))
+              )}
+
+              <Text style={styles.label}>% Costos adicionales (mano de obra, electricidad, gas…)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: 20"
+                placeholderTextColor="#555"
+                keyboardType="decimal-pad"
+                value={form.pct_adicionales}
+                onChangeText={(v) => { setForm({ ...form, pct_adicionales: v }); }}
+              />
+
+              <Text style={styles.label}>% Beneficio esperado</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: 30"
+                placeholderTextColor="#555"
+                keyboardType="decimal-pad"
+                value={form.pct_beneficio}
+                onChangeText={(v) => { setForm({ ...form, pct_beneficio: v }); }}
+              />
+
+              {resultado && (
+                <View style={styles.liveResultBox}>
+                  <View style={styles.liveResultHeader}>
+                    <Ionicons name="trending-up" size={18} color="#10B981" />
+                    <Text style={styles.liveResultTitle}>Resumen de Costos</Text>
+                  </View>
+                  <View style={styles.liveResultGrid}>
+                    <View style={styles.liveResItem}>
+                      <Text style={styles.liveResLabel}>Costo Unitario</Text>
+                      <Text style={styles.liveResValue}>${resultado.costoUnitario.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.liveResItem}>
+                      <Text style={styles.liveResLabel}>Venta Sugerida</Text>
+                      <Text style={[styles.liveResValue, { color: '#10B981' }]}>${resultado.valorVentaUnit.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.liveResItem}>
+                      <Text style={styles.liveResLabel}>Ganancia / un.</Text>
+                      <Text style={styles.liveResValue}>+${resultado.gananciaUnitario.toFixed(2)}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity style={styles.btnVerDetalle} onPress={() => setModalResult(true)}>
+                    <Text style={styles.btnVerDetalleTxt}>Ver análisis detallado</Text>
+                    <Ionicons name="chevron-forward" size={14} color="#F59E0B" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <TouchableOpacity style={styles.btnGuardarMain} onPress={guardar}>
+                <Ionicons name="save" size={22} color="#000" />
+                <Text style={styles.btnGuardarMainTxt}>{recetaExistente ? 'Actualizar' : 'Guardar'} Receta</Text>
               </TouchableOpacity>
-            </View>
-          ))
-        )}
 
-        <Text style={styles.label}>% Costos adicionales (mano de obra, electricidad, gas…)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ej: 20"
-          placeholderTextColor="#555"
-          keyboardType="decimal-pad"
-          value={form.pct_adicionales}
-          onChangeText={(v) => { setForm({ ...form, pct_adicionales: v }); setResultado(null); }}
-        />
-
-        <Text style={styles.label}>% Beneficio esperado</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ej: 30"
-          placeholderTextColor="#555"
-          keyboardType="decimal-pad"
-          value={form.pct_beneficio}
-          onChangeText={(v) => { setForm({ ...form, pct_beneficio: v }); setResultado(null); }}
-        />
-
-        <TouchableOpacity style={styles.btnCalcular} onPress={calcular}>
-          <Ionicons name="calculator-outline" size={20} color="#000" />
-          <Text style={styles.btnCalcularTxt}>Calcular</Text>
-        </TouchableOpacity>
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </TouchableWithoutFeedback>
+        </GestureHandlerRootView>
+      </KeyboardAvoidingView>
 
       <Modal visible={modalResult} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -403,9 +437,6 @@ export default function FormRecetaScreen({ navigation, route }) {
           </View>
         </View>
       </Modal>
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
 
       {/* Modal seleccionar material */}
       <Modal visible={modalMat} animationType="slide" transparent>
@@ -614,4 +645,16 @@ const styles = StyleSheet.create({
   unidadBadgeIncompatible: { borderWidth: 1, borderColor: '#EF4444', opacity: 0.6, },
   errorBox:            { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: '#EF444415', borderRadius: 10, padding: 10, marginTop: 10, },
   errorTxt:            { flex: 1, color: '#EF4444', fontSize: 12, lineHeight: 18, },
+  deleteAction:        { backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center', width: 70, borderRadius: 10, marginBottom: 8, marginLeft: 8 },
+  liveResultBox:       { backgroundColor: '#16213e', borderRadius: 20, padding: 16, marginTop: 24, borderWidth: 1, borderColor: '#10B98133', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
+  liveResultHeader:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  liveResultTitle:     { color: '#fff', fontSize: 14, fontWeight: '700' },
+  liveResultGrid:      { flexDirection: 'row', justifyContent: 'space-between' },
+  liveResItem:         { alignItems: 'center' },
+  liveResLabel:        { color: '#888', fontSize: 11, marginBottom: 4 },
+  liveResValue:        { color: '#fff', fontSize: 16, fontWeight: '800' },
+  btnVerDetalle:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, borderTopWidth: 1, borderTopColor: '#ffffff05', paddingTop: 10, gap: 4 },
+  btnVerDetalleTxt:    { color: '#F59E0B', fontSize: 12, fontWeight: '600' },
+  btnGuardarMain:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F59E0B', borderRadius: 16, padding: 18, marginTop: 24, gap: 10 },
+  btnGuardarMainTxt:   { color: '#000', fontWeight: '800', fontSize: 18 },
 });

@@ -10,7 +10,7 @@ import { deletePedido } from '../database/db';
 import { useApp } from '../contexts/AppContext';
 
 export default function PedidosScreen({ navigation }) {
-  const { pedidos, cargarPedidos } = useApp();
+  const { pedidos, cargarPedidos, config } = useApp();
   const [busqueda, setBusqueda] = useState('');
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -28,19 +28,20 @@ export default function PedidosScreen({ navigation }) {
   };
 
   const compartirWhatsApp = (item) => {
-    let msgStr = `*FACTURA DE PEDIDO - MI REPOSTERÍA*%0A%0A` +
-      `*Cliente:* ${item.cliente_nombre}%0A` +
-      `*Productos:* ${item.productos_resumen || 'Sin productos'}%0A`;
+    let msgStr = `*${config.nombre_negocio?.toUpperCase() || 'MI REPOSTERÍA'}* 🍰✨%0A%0A` +
+      `¡Hola! Soy *${config.nombre_usuario}*, aquí tienes el detalle de tu pedido:%0A%0A` +
+      `👤 *Cliente:* ${item.cliente_nombre}%0A` +
+      `📦 *Productos:* ${item.productos_resumen || 'Sin productos'}%0A`;
 
-    if (item.color) msgStr += `*Color:* ${item.color}%0A`;
-    if (item.relleno) msgStr += `*Relleno:* ${item.relleno}%0A`;
-    if (item.decoracion) msgStr += `*Decoración:* ${item.decoracion}%0A`;
+    if (item.color) msgStr += `🎨 *Color:* ${item.color}%0A`;
+    if (item.relleno) msgStr += `🍓 *Relleno:* ${item.relleno}%0A`;
+    if (item.decoracion) msgStr += `✨ *Decoración:* ${item.decoracion}%0A`;
 
-    msgStr += `%0A*Entrega:* ${item.fecha_entrega} ${item.hora_entrega || ''}%0A` +
-      `*Tipo:* ${item.domicilio ? 'Domicilio' : 'Recogida'}%0A` +
-      (item.domicilio ? `*Dirección:* ${item.direccion}%0A` : '') +
-      `%0A*TOTAL A PAGAR: $${parseFloat(item.costo_total).toFixed(2)}*%0A%0A` +
-      `¡Gracias por preferirnos! 🎂✨`;
+    msgStr += `%0A📅 *Entrega:* ${item.fecha_entrega} ⏰ ${item.hora_entrega || ''}%0A` +
+      `📍 *Tipo:* ${item.domicilio ? '🚀 Domicilio' : '🏠 Recogida'}%0A` +
+      (item.domicilio ? `🗺️ *Dirección:* ${item.direccion}%0A` : '') +
+      `%0A💰 *TOTAL A PAGAR: $${parseFloat(item.costo_total).toFixed(2)}*%0A%0A` +
+      `¡Gracias por preferirnos! 👩‍🍳💖`;
     
     const url = `whatsapp://send?text=${msgStr}`;
     Linking.canOpenURL(url).then(supported => {

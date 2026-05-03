@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, StatusBar,
   TouchableOpacity, TextInput, ScrollView, Alert, Modal, FlatList,
-  Switch
+  Switch, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ import {
 } from '../database/db';
 import { useApp } from '../contexts/AppContext';
 import { calcularCostoIngrediente } from '../utils/conversions';
+import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function FormPedidoScreen({ navigation, route }) {
   const pedidoEditar = route.params?.pedido;
@@ -212,7 +213,13 @@ export default function FormPedidoScreen({ navigation, route }) {
         <Text style={styles.headerTitle}>{pedidoEditar ? 'Editar Pedido' : 'Nuevo Pedido'}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.section}>
           <Text style={styles.label}>Cliente</Text>
           <TextInput
@@ -249,24 +256,33 @@ export default function FormPedidoScreen({ navigation, route }) {
             </View>
           ) : (
             productosSeleccionados.map((item) => (
-              <View key={item.id} style={styles.prodCard}>
-                <View style={styles.prodInfo}>
-                  <Text style={styles.prodNombre}>{item.nombre}</Text>
-                  <Text style={styles.prodSub}>${(item.precioVenta || 0).toFixed(2)} c/u</Text>
+              <Swipeable
+                key={item.id}
+                renderRightActions={() => (
+                  <TouchableOpacity 
+                    style={styles.deleteAction} 
+                    onPress={() => eliminarProducto(item.id)}
+                  >
+                    <Ionicons name="trash-outline" size={24} color="#fff" />
+                  </TouchableOpacity>
+                )}
+              >
+                <View style={styles.prodCard}>
+                  <View style={styles.prodInfo}>
+                    <Text style={styles.prodNombre}>{item.nombre}</Text>
+                    <Text style={styles.prodSub}>${(item.precioVenta || 0).toFixed(2)} c/u</Text>
+                  </View>
+                  <View style={styles.prodActions}>
+                    <TouchableOpacity onPress={() => actualizarCantidad(item.id, -1)} style={styles.qtyBtn}>
+                      <Ionicons name="remove" size={16} color="#fff" />
+                    </TouchableOpacity>
+                    <Text style={styles.qtyTxt}>{item.cantidad}</Text>
+                    <TouchableOpacity onPress={() => actualizarCantidad(item.id, 1)} style={styles.qtyBtn}>
+                      <Ionicons name="add" size={16} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <View style={styles.prodActions}>
-                  <TouchableOpacity onPress={() => actualizarCantidad(item.id, -1)} style={styles.qtyBtn}>
-                    <Ionicons name="remove" size={16} color="#fff" />
-                  </TouchableOpacity>
-                  <Text style={styles.qtyTxt}>{item.cantidad}</Text>
-                  <TouchableOpacity onPress={() => actualizarCantidad(item.id, 1)} style={styles.qtyBtn}>
-                    <Ionicons name="add" size={16} color="#fff" />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => eliminarProducto(item.id)} style={styles.deleteBtn}>
-                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-              </View>
+              </Swipeable>
             ))
           )}
         </View>
@@ -385,7 +401,10 @@ export default function FormPedidoScreen({ navigation, route }) {
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
-      </ScrollView>
+            </ScrollView>
+          </TouchableWithoutFeedback>
+        </GestureHandlerRootView>
+      </KeyboardAvoidingView>
 
       {showDatePicker && (
         <DateTimePicker
@@ -488,4 +507,5 @@ const styles = StyleSheet.create({
   recetaIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F59E0B15', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   recetaNombre: { color: '#fff', fontSize: 16, fontWeight: '600' },
   recetaPrecio: { color: '#888', fontSize: 12, marginTop: 2 },
+  deleteAction: { backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center', width: 70, borderRadius: 20, marginBottom: 10, marginLeft: 8 },
 });

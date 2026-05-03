@@ -83,6 +83,25 @@ export const initDatabase = async () => {
     FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE,
     FOREIGN KEY (receta_id) REFERENCES recetas(id) ON DELETE RESTRICT
   )`);
+
+  // CONFIG
+  const configTableInfo = await db.getAllAsync("PRAGMA table_info(config)");
+  if (configTableInfo.length > 0 && !configTableInfo.some(col => col.name === 'clave')) {
+    // Si la tabla existe pero no tiene la columna 'clave', la borramos para recrearla correctamente
+    await db.execAsync("DROP TABLE config");
+  }
+
+  await db.execAsync(`CREATE TABLE IF NOT EXISTS config (
+    clave TEXT PRIMARY KEY,
+    valor TEXT
+  )`);
+
+  // Valores por defecto si no existen
+  const configCount = await db.getFirstAsync('SELECT COUNT(*) as count FROM config');
+  if (configCount.count === 0) {
+    await db.runAsync("INSERT INTO config (clave, valor) VALUES ('nombre_usuario', 'Pastelero')");
+    await db.runAsync("INSERT INTO config (clave, valor) VALUES ('nombre_negocio', 'Mi Repostería')");
+  }
 };
 
 export const getDb = () => db;
@@ -588,6 +607,34 @@ export const getEstadisticasData = async () => {
   } catch (error) {
     console.error('getEstadisticasData:', error);
     throw new Error('No se pudieron cargar las estadísticas.');
+  }
+};
+
+export const getConfig = async () => {
+  try {
+    const currentDb = getDb();
+    const rows = await currentDb.getAllAsync('SELECT * FROM config');
+    const config = {};
+    rows.forEach(row => {
+      config[row.clave] = row.valor;
+    });
+    return config;
+  } catch (error) {
+    console.error('getConfig:', error);
+    return { nombre_usuario: 'Pastelero', nombre_negocio: 'Mi Repostería' };
+  }
+};
+
+export const updateConfig = async (clave, valor) => {
+  try {
+    const currentDb = getDb();
+    return await currentDb.runAsync(
+      'INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)',
+      [clave, valor]
+    );
+  } catch (error) {
+    console.error('updateConfig:', error);
+    throw new Error('No se pudo actualizar la configuración.');
   }
 };
 
